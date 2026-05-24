@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Frank_Ruhl_Libre } from "next/font/google";
 import "./globals.css";
+import ServiceWorker from "@/app/components/ServiceWorker";
 
 const frankRuhl = Frank_Ruhl_Libre({
   subsets: ["hebrew", "latin"],
@@ -32,6 +33,7 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl" className={`${frankRuhl.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-white text-gray-900 dark:bg-zinc-950 dark:text-gray-100 antialiased">
+        <ServiceWorker />
         {children}
       </body>
     </html>
