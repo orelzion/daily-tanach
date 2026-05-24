@@ -10,8 +10,7 @@
  *
  * Run from your local machine, then commit data/calendar.json.
  */
-import { PDFParse } from "pdf-parse";
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -466,15 +465,6 @@ async function downloadPdf(filename) {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${filename}`);
   return Buffer.from(await res.arrayBuffer());
-}
-
-async function extractPdfText(buf) {
-  const parser = new PDFParse({});
-  await parser.load({ data: new Uint8Array(buf) });
-
-  // Actually pdf-parse v2 uses different API - try CLI approach
-  // Fall back to writing to temp file
-  throw new Error("Use CLI approach");
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
