@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="sg" cx="40%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#F7D060"/>
+      <stop offset="100%" stop-color="#D08818"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Warm cream background -->
+  <rect width="1024" height="1024" rx="190" ry="190" fill="#FAF8F1"/>
+
+  <!-- Sun rays drawn under sun; sun circle covers their inner ends -->
+  <g fill="#C8861A">
+    <rect transform="rotate(-64, 512, 555)" x="501" y="305" width="22" height="250" rx="11"/>
+    <rect transform="rotate(-48, 512, 555)" x="501" y="305" width="22" height="250" rx="11"/>
+    <rect transform="rotate(-32, 512, 555)" x="501" y="305" width="22" height="250" rx="11"/>
+    <rect transform="rotate(-16, 512, 555)" x="501" y="305" width="22" height="250" rx="11"/>
+    <rect transform="rotate(0,   512, 555)" x="501" y="305" width="22" height="250" rx="11"/>
+    <rect transform="rotate(16,  512, 555)" x="501" y="305" width="22" height="250" rx="11"/>
+    <rect transform="rotate(32,  512, 555)" x="501" y="305" width="22" height="250" rx="11"/>
+    <rect transform="rotate(48,  512, 555)" x="501" y="305" width="22" height="250" rx="11"/>
+    <rect transform="rotate(64,  512, 555)" x="501" y="305" width="22" height="250" rx="11"/>
+  </g>
+
+  <!-- Sun (covers inner ray ends, bottom half hidden by book) -->
+  <circle cx="512" cy="555" r="112" fill="url(#sg)"/>
+
+  <!-- Book: left page -->
+  <path d="M 512,555 C 455,618 265,705 100,782 Q 62,862 115,938 Q 312,988 512,988 Z" fill="#1B2C4C"/>
+  <!-- Book: right page -->
+  <path d="M 512,555 C 569,618 759,705 924,782 Q 962,862 909,938 Q 712,988 512,988 Z" fill="#1B2C4C"/>
+</svg>

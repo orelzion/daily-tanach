@@ -11,7 +11,6 @@ const frankRuhl = Frank_Ruhl_Libre({
 export const metadata: Metadata = {
   title: "תנ״ך יומי",
   description: "לימוד תנ״ך יומי עם פירוש שטיינזלץ",
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
