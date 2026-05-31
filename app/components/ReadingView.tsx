@@ -128,8 +128,9 @@ export default function ReadingView() {
 }
 
 function Reading({ data }: { data: ReadingResponse }) {
-  const heading =
-    data.chapterEnd
+  const heading = data.multiBook
+    ? data.bookHe
+    : data.chapterEnd
       ? `${data.bookHe} פרקים ${data.chapter}–${data.chapterEnd}`
       : `${data.bookHe} פרק ${data.chapter}`;
 
@@ -138,10 +139,16 @@ function Reading({ data }: { data: ReadingResponse }) {
       <h1 className="text-2xl font-bold mb-6 text-center tracking-wide">{heading}</h1>
       <div className="space-y-5">
         {data.verses.map((v, i) => {
-          const prevChapter = i > 0 ? data.verses[i - 1].chapter : null;
-          const showChapterHeader = data.chapterEnd && prevChapter !== null && v.chapter !== prevChapter;
+          const prev = i > 0 ? data.verses[i - 1] : null;
+          const showBookHeader = !!v.bookHe;
+          const showChapterHeader = !showBookHeader && data.chapterEnd && prev && v.chapter !== prev.chapter;
           return (
-            <div key={`${v.chapter}:${v.num}`}>
+            <div key={`${v.bookHe ?? ""}${v.chapter}:${v.num}`}>
+              {showBookHeader && (
+                <h2 className="text-lg font-semibold text-amber-700 dark:text-amber-500 mt-8 mb-3 text-center">
+                  {v.bookHe}
+                </h2>
+              )}
               {showChapterHeader && (
                 <h2 className="text-lg font-semibold text-amber-700 dark:text-amber-500 mt-8 mb-3 text-center">
                   פרק {hebrewNumeral(v.chapter)}

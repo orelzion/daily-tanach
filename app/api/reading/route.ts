@@ -69,6 +69,20 @@ async function fetchSteinsaltz(ref: string, book: string): Promise<NestedHe | nu
   return null;
 }
 
+const SEFARIA_TO_HEB: Record<string, string> = {
+  "I Samuel": "שמואל א", "II Samuel": "שמואל ב",
+  "I Kings": "מלכים א", "II Kings": "מלכים ב",
+  "I Chronicles": "דברי הימים א", "II Chronicles": "דברי הימים ב",
+  Ezra: "עזרא", Nehemiah: "נחמיה", Joshua: "יהושע", Judges: "שופטים",
+  Isaiah: "ישעיהו", Jeremiah: "ירמיהו", Ezekiel: "יחזקאל",
+  Hosea: "הושע", Joel: "יואל", Amos: "עמוס", Obadiah: "עובדיה",
+  Jonah: "יונה", Micah: "מיכה", Nahum: "נחום", Habakkuk: "חבקוק",
+  Zephaniah: "צפניה", Haggai: "חגי", Zechariah: "זכריה", Malachi: "מלאכי",
+  Psalms: "תהלים", Proverbs: "משלי", Job: "איוב",
+  "Song of Songs": "שיר השירים", Ruth: "רות", Lamentations: "איכה",
+  Ecclesiastes: "קהלת", Esther: "אסתר", Daniel: "דניאל",
+};
+
 export async function GET(req: NextRequest) {
   const date = req.nextUrl.searchParams.get("date");
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -81,37 +95,62 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "לא נמצאה קריאה לתאריך זה", date }, { status: 404 });
     }
 
-    const { ref, book, bookHe } = entry;
-    const [textData, steinsaltzData] = await Promise.all([
-      fetchText(ref),
-      fetchSteinsaltz(ref, book),
-    ]);
+    const { refs, book, bookHe } = entry;
+    const multiBook = refs.length > 1;
 
-    if (!textData) {
-      return NextResponse.json({ error: "שגיאה בקבלת הטקסט מ-Sefaria", ref }, { status: 502 });
+    // Fetch all refs in parallel (text + Steinsaltz per ref).
+    const fetched = await Promise.all(
+      refs.map(async (ref, idx) => {
+        const refBook = ref.split(" ")[0];
+        const [textData, steinsaltzData] = await Promise.all([
+          fetchText(ref),
+          fetchSteinsaltz(ref, refBook),
+        ]);
+        return { ref, refBook, textData, steinsaltzData, isFirst: idx === 0 };
+      }),
+    );
+
+    const firstFailed = fetched.find((f) => !f.textData);
+    if (firstFailed) {
+      return NextResponse.json(
+        { error: "שגיאה בקבלת הטקסט מ-Sefaria", ref: firstFailed.ref },
+        { status: 502 },
+      );
     }
 
-    const flat = flattenHe(textData.he, textData.sections);
-    const steinsaltzFlat = steinsaltzData
-      ? flattenHe(steinsaltzData, textData.sections)
-      : [];
+    let startChapter = 1;
+    let endChapter   = 1;
+    const verses: Verse[] = [];
 
-    const startChapter = textData.sections?.[0] ?? 1;
-    const endChapter   = textData.toSections?.[0] ?? startChapter;
+    for (const { textData, steinsaltzData, refBook, isFirst } of fetched) {
+      const flat = flattenHe(textData!.he, textData!.sections);
+      const steinsaltzFlat = steinsaltzData
+        ? flattenHe(steinsaltzData, textData!.sections)
+        : [];
 
-    const verses: Verse[] = flat.map((v, i) => ({
-      chapter: v.chapter,
-      num: v.num,
-      text: v.text,
-      steinsaltz: steinsaltzFlat[i]?.text ?? null,
-    }));
+      if (isFirst) startChapter = textData!.sections?.[0] ?? 1;
+      endChapter = textData!.toSections?.[0] ?? (textData!.sections?.[0] ?? 1);
+
+      const segBookHe = multiBook ? (SEFARIA_TO_HEB[refBook] ?? refBook) : undefined;
+
+      flat.forEach((v, i) => {
+        verses.push({
+          chapter: v.chapter,
+          num: v.num,
+          text: v.text,
+          steinsaltz: steinsaltzFlat[i]?.text ?? null,
+          ...(segBookHe && i === 0 && { bookHe: segBookHe }),
+        });
+      });
+    }
 
     const body: ReadingResponse = {
       date,
       bookHe,
       book,
       chapter: startChapter,
-      ...(endChapter !== startChapter && { chapterEnd: endChapter }),
+      ...(!multiBook && endChapter !== startChapter && { chapterEnd: endChapter }),
+      ...(multiBook && { multiBook: true }),
       verses,
     };
 

@@ -133,6 +133,15 @@ function dayIndexToReading(dayIndex: number): { book: BookDef; sederNum: number 
   return null;
 }
 
+// ── Fallback refs for sedarim missing from masdirim.org GitHub ───────────────
+// Sedarim 6 & 7 of תרי_עשר (Amos 2:10–7:14) are absent from the repo.
+const FALLBACK_REFS: Record<string, Record<number, string[]>> = {
+  "תרי_עשר": {
+    6: ["Amos 2:10-4:13"],
+    7: ["Amos 5:1-7:14"],
+  },
+};
+
 // ── masdirim.org verse lookup ─────────────────────────────────────────────────
 
 const GITHUB_RAW =
@@ -188,7 +197,14 @@ type MasdirimVerse = {
 async function fetchSederVerseRange(
   masdirimBook: string,
   sederNum: number,
-): Promise<{ bookHe: string; book: string; ref: string } | null> {
+): Promise<{ bookHe: string; book: string; refs: string[] } | null> {
+  // Use hardcoded fallback when masdirim file is known to be missing.
+  const fallback = FALLBACK_REFS[masdirimBook]?.[sederNum];
+  if (fallback) {
+    const firstSefariaBook = fallback[0].split(" ")[0];
+    return { bookHe: masdirimBook.replace("_", " "), book: firstSefariaBook, refs: fallback };
+  }
+
   const sederHeb = numToHeb(sederNum);
   const url = `${GITHUB_RAW}/seder_${sederHeb}_${masdirimBook}.json`;
   const res = await fetch(url, { next: { revalidate: 86400 } });
@@ -197,23 +213,42 @@ async function fetchSederVerseRange(
   const verses: MasdirimVerse[] = await res.json();
   if (!Array.isArray(verses) || verses.length === 0) return null;
 
-  const first = verses[0];
-  const last  = verses[verses.length - 1];
+  // Group consecutively by bookchapter to handle cross-book sedarim (e.g. תרי_עשר).
+  const groups: { bookHe: string; verses: MasdirimVerse[] }[] = [];
+  for (const v of verses) {
+    const last = groups[groups.length - 1];
+    if (last && last.bookHe === v.bookchapter) {
+      last.verses.push(v);
+    } else {
+      groups.push({ bookHe: v.bookchapter, verses: [v] });
+    }
+  }
 
-  const bookHe = first.bookchapter;
-  const book   = BOOKCHAPTER_TO_SEFARIA[bookHe] ?? bookHe;
+  const refs: string[] = [];
+  let firstBook = "";
 
-  const ch1 = hebToNum(first.chapter);
-  const v1  = hebToNum(first.versechapter);
-  const ch2 = hebToNum(last.chapter);
-  const v2  = hebToNum(last.versechapter);
-  if (!ch1 || !v1 || !ch2 || !v2) return null;
+  for (const { bookHe, verses: bVerses } of groups) {
+    const book = BOOKCHAPTER_TO_SEFARIA[bookHe] ?? bookHe;
+    if (!firstBook) firstBook = book;
 
-  const ref = ch1 === ch2
-    ? `${book} ${ch1}:${v1}-${v2}`
-    : `${book} ${ch1}:${v1}-${ch2}:${v2}`;
+    const first = bVerses[0];
+    const last  = bVerses[bVerses.length - 1];
+    const ch1 = hebToNum(first.chapter);
+    const v1  = hebToNum(first.versechapter);
+    const ch2 = hebToNum(last.chapter);
+    const v2  = hebToNum(last.versechapter);
+    if (!ch1 || !v1 || !ch2 || !v2) continue;
 
-  return { bookHe, book, ref };
+    const ref = ch1 === ch2
+      ? `${book} ${ch1}:${v1}-${v2}`
+      : `${book} ${ch1}:${v1}-${ch2}:${v2}`;
+    refs.push(ref);
+  }
+
+  if (refs.length === 0) return null;
+
+  const firstBookHe = groups[0].bookHe;
+  return { bookHe: firstBookHe, book: firstBook, refs };
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -231,5 +266,5 @@ export async function getReadingForDate(date: string): Promise<CalendarEntry | n
   const entry = await fetchSederVerseRange(reading.book.masdirim, reading.sederNum);
   if (!entry) return null;
 
-  return { bookHe: reading.book.bookHe, book: entry.book, ref: entry.ref };
+  return { bookHe: reading.book.bookHe, book: entry.book, refs: entry.refs };
 }
