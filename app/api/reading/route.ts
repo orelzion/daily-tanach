@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { ReadingResponse, Verse } from "@/app/lib/types";
-import { getCalendar } from "@/app/lib/calendar";
+import { getReadingForDate } from "@/app/lib/calendar";
 
 const SEFARIA = "https://www.sefaria.org/api";
 
@@ -42,8 +42,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const calendar = await getCalendar();
-    const entry = calendar[date];
+    const entry = await getReadingForDate(date);
     if (!entry) {
       return NextResponse.json({ error: "לא נמצאה קריאה לתאריך זה", date }, { status: 404 });
     }

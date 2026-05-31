@@ -1,15 +1,17 @@
-import { NextResponse } from "next/server";
-import { getCalendar } from "@/app/lib/calendar";
+import { NextRequest, NextResponse } from "next/server";
+import { getReadingForDate } from "@/app/lib/calendar";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const date = req.nextUrl.searchParams.get("date");
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json({ error: "חסר פרמטר date (YYYY-MM-DD)" }, { status: 400 });
+  }
   try {
-    const data = await getCalendar();
-    return NextResponse.json(data, {
-      headers: {
-        "Cache-Control": "s-maxage=43200, stale-while-revalidate=86400",
-        "X-Entry-Count": String(Object.keys(data).length),
-      },
-    });
+    const entry = await getReadingForDate(date);
+    if (!entry) {
+      return NextResponse.json({ error: "אין קריאה לתאריך זה", date }, { status: 404 });
+    }
+    return NextResponse.json(entry);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
