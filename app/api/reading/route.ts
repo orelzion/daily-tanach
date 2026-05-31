@@ -4,8 +4,30 @@ import { getReadingForDate } from "@/app/lib/calendar";
 
 const SEFARIA = "https://www.sefaria.org/api";
 
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#\d+;/g, "")
+    .replace(/\{[פסרנ]\}/g, "");
+}
+
 function stripTags(s: string): string {
-  return s.replace(/<[^>]+>/g, "").trim();
+  return decodeEntities(s.replace(/<[^>]+>/g, "")).trim();
+}
+
+// Like stripTags but keeps <b>…</b> for bold rendering in the UI.
+function processCommentary(s: string): string {
+  const safe = s
+    .replace(/<b>/gi, "\x00B")
+    .replace(/<\/b>/gi, "\x00/B")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\x00B/g, "<b>")
+    .replace(/\x00\/B/g, "</b>");
+  return decodeEntities(safe).trim();
 }
 
 // Sefaria returns string (single verse), string[] (single chapter), or
@@ -15,30 +37,29 @@ type NestedHe = string | string[] | string[][];
 function flattenHe(
   he: NestedHe,
   sections: number[],
+  process: (s: string) => string = stripTags,
 ): { chapter: number; num: number; text: string }[] {
   const startChapter = sections[0] ?? 1;
   const startVerse   = sections[1] ?? 1;
 
   if (!Array.isArray(he)) {
-    return [{ chapter: startChapter, num: startVerse, text: stripTags(he ?? "") }];
+    return [{ chapter: startChapter, num: startVerse, text: process(he ?? "") }];
   }
 
   if (!Array.isArray(he[0])) {
-    // Single chapter: string[]
     return (he as string[]).map((t, i) => ({
       chapter: startChapter,
       num: startVerse + i,
-      text: stripTags(t ?? ""),
+      text: process(t ?? ""),
     }));
   }
 
-  // Multi-chapter: string[][]
   const result: { chapter: number; num: number; text: string }[] = [];
   (he as string[][]).forEach((chVerses, chIdx) => {
     const chapter    = startChapter + chIdx;
     const verseStart = chIdx === 0 ? startVerse : 1;
     chVerses.forEach((t, vIdx) => {
-      result.push({ chapter, num: verseStart + vIdx, text: stripTags(t ?? "") });
+      result.push({ chapter, num: verseStart + vIdx, text: process(t ?? "") });
     });
   });
   return result;
@@ -125,7 +146,7 @@ export async function GET(req: NextRequest) {
     for (const { textData, steinsaltzData, refBook, isFirst } of fetched) {
       const flat = flattenHe(textData!.he, textData!.sections);
       const steinsaltzFlat = steinsaltzData
-        ? flattenHe(steinsaltzData, textData!.sections)
+        ? flattenHe(steinsaltzData, textData!.sections, processCommentary)
         : [];
 
       if (isFirst) startChapter = textData!.sections?.[0] ?? 1;

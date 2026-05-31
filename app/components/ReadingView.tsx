@@ -161,9 +161,10 @@ function Reading({ data }: { data: ReadingResponse }) {
                 {v.text}
               </p>
               {v.steinsaltz && (
-                <p className="mt-1 pr-3 text-base leading-7 text-gray-600 dark:text-gray-400 border-r-2 border-amber-300 dark:border-amber-700">
-                  {v.steinsaltz}
-                </p>
+                <p
+                  className="mt-1 pr-3 text-base leading-7 text-gray-600 dark:text-gray-400 border-r-2 border-amber-300 dark:border-amber-700"
+                  dangerouslySetInnerHTML={{ __html: v.steinsaltz }}
+                />
               )}
             </div>
           );
