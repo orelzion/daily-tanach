@@ -43,42 +43,39 @@ const TOTAL_SEDARIM = BOOKS.reduce((s, b) => s + b.count, 0); // 293
 //   - Hoshana Raba (21 Tishrei) — confirmed from official PDF calendar
 //   - Purim, Tisha B'Av, Yom HaAtzma'ut
 
-const EXTRA_SKIP_DESCS = new Set([
-  "Purim",
-  "Tish'a B'Av",
-  "Tish'a B'Av (observed)",
-  "Yom HaAtzma'ut",
-]);
-
 // Cache skipped dates per Hebrew year so we only compute once per year.
 const skipCache = new Map<number, Set<string>>();
 
 function getSkipDatesForHebrewYear(year: number): Set<string> {
   if (skipCache.has(year)) return skipCache.get(year)!;
 
+  // Cycle runs 23 Tishrei year → 22 Tishrei year+1
   const cycleStart = new HDate(23, months.TISHREI, year);
   const cycleEnd   = new HDate(22, months.TISHREI, year + 1);
 
+  // Fetch all events — no mask filter so we see everything
   const events = HebrewCalendar.calendar({
     start: cycleStart,
     end:   cycleEnd,
     il:    true,
-    noHolidays: false,
-    noMinorFast: false,
-    noModern: false,
-    mask: flags.CHAG | flags.MINOR_FAST | flags.MODERN_HOLIDAY,
   });
 
   const skipped = new Set<string>();
 
-  // Hoshana Raba: always 21 Tishrei
-  skipped.add(new HDate(21, months.TISHREI, year).greg().toISOString().slice(0, 10));
-
   for (const ev of events) {
-    const iso = ev.date.greg().toISOString().slice(0, 10);
+    const iso  = ev.date.greg().toISOString().slice(0, 10);
+    const desc = ev.getDesc();
+
     if (ev.mask & flags.CHAG) {
+      // Major Yom Tov: RH×2, YK, Sukkot 1, Shemini Atzeret, Pesach 1 & 7, Shavuot
       skipped.add(iso);
-    } else if (EXTRA_SKIP_DESCS.has(ev.getDesc())) {
+    } else if (desc === "Purim") {
+      skipped.add(iso);
+    } else if (desc === "Tish'a B'Av" || desc === "Tish'a B'Av (observed)") {
+      skipped.add(iso);
+    } else if (desc === "Yom HaAtzma'ut") {
+      skipped.add(iso);
+    } else if (desc.includes("Hoshana Raba")) {
       skipped.add(iso);
     }
   }
@@ -106,26 +103,7 @@ function isSkipDay(iso: string): boolean {
 
 // First official cycle start: 23 Tishrei 5787 = 2026-10-04
 const PROGRAM_START_ISO = "2026-10-04";
-const PROGRAM_START_ABS = new HDate(new Date(PROGRAM_START_ISO + "T12:00:00Z")).abs();
 
-function getCycleStartIso(iso: string): string | null {
-  const d = new Date(iso + "T12:00:00Z");
-  const hd = new HDate(d);
-
-  let year = hd.getFullYear();
-  let start = new HDate(23, months.TISHREI, year);
-
-  // If we're before 23 Tishrei this year, cycle started previous year
-  if (hd.abs() < start.abs()) {
-    year--;
-    start = new HDate(23, months.TISHREI, year);
-  }
-
-  // Don't serve dates before the program launched
-  if (start.abs() < PROGRAM_START_ABS) return null;
-
-  return start.greg().toISOString().slice(0, 10);
-}
 
 function weekdaysBetween(startIso: string, targetIso: string): number {
   const d   = new Date(startIso + "T12:00:00Z");
@@ -235,14 +213,14 @@ async function fetchSederVerseRange(
 
 export async function getReadingForDate(date: string): Promise<CalendarEntry | null> {
   if (isSkipDay(date)) return null;
+  if (date < PROGRAM_START_ISO) return null;
 
-  const cycleStart = getCycleStartIso(date);
-  if (!cycleStart) return null; // before program start
+  // Count reading days since the anchor, then wrap modulo 293.
+  // This handles leap years naturally: the cycle restarts every 293 reading days.
+  const totalDays = weekdaysBetween(PROGRAM_START_ISO, date);
+  const sederIndex = totalDays % TOTAL_SEDARIM; // 0-based
 
-  const dayIndex = weekdaysBetween(cycleStart, date);
-  if (dayIndex >= TOTAL_SEDARIM) return null; // past end of cycle (shouldn't happen)
-
-  const reading = dayIndexToReading(dayIndex);
+  const reading = dayIndexToReading(sederIndex);
   if (!reading) return null;
 
   const entry = await fetchSederVerseRange(reading.book.masdirim, reading.sederNum);
