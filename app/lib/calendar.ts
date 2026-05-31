@@ -101,17 +101,24 @@ function isSkipDay(iso: string): boolean {
 
 // ── Cycle date math ──────────────────────────────────────────────────────────
 
-// First official cycle start: 23 Tishrei 5787 = 2026-10-04
-const PROGRAM_START_ISO = "2026-10-04";
+// Anchor: 23 Tishrei 5787 = 2026-10-04 = Joshua seder 1 (day 0 of cycle)
+const ANCHOR_ISO = "2026-10-04";
 
+// Signed count of reading days between anchor and date (negative = before anchor).
+function readingDaysSinceAnchor(date: string): number {
+  if (date >= ANCHOR_ISO) {
+    return countReadingDays(ANCHOR_ISO, date);
+  } else {
+    return -countReadingDays(date, ANCHOR_ISO);
+  }
+}
 
-function weekdaysBetween(startIso: string, targetIso: string): number {
-  const d   = new Date(startIso + "T12:00:00Z");
-  const end = new Date(targetIso + "T12:00:00Z");
+function countReadingDays(fromIso: string, toIso: string): number {
+  const d   = new Date(fromIso + "T12:00:00Z");
+  const end = new Date(toIso   + "T12:00:00Z");
   let count = 0;
   while (d < end) {
-    const ds  = d.toISOString().slice(0, 10);
-    if (!isSkipDay(ds)) count++;
+    if (!isSkipDay(d.toISOString().slice(0, 10))) count++;
     d.setUTCDate(d.getUTCDate() + 1);
   }
   return count;
@@ -213,12 +220,10 @@ async function fetchSederVerseRange(
 
 export async function getReadingForDate(date: string): Promise<CalendarEntry | null> {
   if (isSkipDay(date)) return null;
-  if (date < PROGRAM_START_ISO) return null;
 
-  // Count reading days since the anchor, then wrap modulo 293.
-  // This handles leap years naturally: the cycle restarts every 293 reading days.
-  const totalDays = weekdaysBetween(PROGRAM_START_ISO, date);
-  const sederIndex = totalDays % TOTAL_SEDARIM; // 0-based
+  // Signed reading days from anchor → wrap with JS-safe modulo → 0-based seder index.
+  const signed     = readingDaysSinceAnchor(date);
+  const sederIndex = ((signed % TOTAL_SEDARIM) + TOTAL_SEDARIM) % TOTAL_SEDARIM;
 
   const reading = dayIndexToReading(sederIndex);
   if (!reading) return null;
