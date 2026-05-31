@@ -7,6 +7,7 @@ export type CalendarEntry = {
 export type CalendarData = Record<string, CalendarEntry>; // keyed YYYY-MM-DD
 
 export type Verse = {
+  chapter: number;
   num: number;
   text: string;
   steinsaltz: string | null;

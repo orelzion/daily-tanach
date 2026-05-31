@@ -137,21 +137,30 @@ function Reading({ data }: { data: ReadingResponse }) {
     <article>
       <h1 className="text-2xl font-bold mb-6 text-center tracking-wide">{heading}</h1>
       <div className="space-y-5">
-        {data.verses.map((v) => (
-          <div key={v.num}>
-            <p className="text-lg leading-8">
-              <span className="font-bold text-amber-700 dark:text-amber-500 ml-1">
-                {hebrewNumeral(v.num)}
-              </span>
-              {v.text}
-            </p>
-            {v.steinsaltz && (
-              <p className="mt-1 pr-3 text-base leading-7 text-gray-600 dark:text-gray-400 border-r-2 border-amber-300 dark:border-amber-700">
-                {v.steinsaltz}
+        {data.verses.map((v, i) => {
+          const prevChapter = i > 0 ? data.verses[i - 1].chapter : null;
+          const showChapterHeader = data.chapterEnd && prevChapter !== null && v.chapter !== prevChapter;
+          return (
+            <div key={`${v.chapter}:${v.num}`}>
+              {showChapterHeader && (
+                <h2 className="text-lg font-semibold text-amber-700 dark:text-amber-500 mt-8 mb-3 text-center">
+                  פרק {hebrewNumeral(v.chapter)}
+                </h2>
+              )}
+              <p className="text-lg leading-8">
+                <span className="font-bold text-amber-700 dark:text-amber-500 ml-1">
+                  {hebrewNumeral(v.num)}
+                </span>
+                {v.text}
               </p>
-            )}
-          </div>
-        ))}
+              {v.steinsaltz && (
+                <p className="mt-1 pr-3 text-base leading-7 text-gray-600 dark:text-gray-400 border-r-2 border-amber-300 dark:border-amber-700">
+                  {v.steinsaltz}
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
     </article>
   );
