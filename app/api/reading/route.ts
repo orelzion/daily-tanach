@@ -87,7 +87,7 @@ async function fetchSteinsaltz(ref: string, book: string): Promise<NestedHe | nu
     if (!res.ok) continue;
     const data = await res.json() as SefariaText;
     const flat = flattenHe(data.he, data.sections);
-    if (flat.some((v) => v.text)) return flat.map((v) => v.text) as unknown as NestedHe;
+    if (flat.some((v) => v.text)) return data.he;
   }
   return null;
 }
