@@ -162,7 +162,7 @@ function Reading({ data }: { data: ReadingResponse }) {
               </p>
               {v.steinsaltz && (
                 <p
-                  className="mt-1 pr-3 text-base leading-7 text-gray-600 dark:text-gray-400 border-r-2 border-amber-300 dark:border-amber-700"
+                  className="mt-1 pr-3 text-base leading-7 text-gray-600 dark:text-gray-400 border-r-2 border-amber-300 dark:border-amber-700 [&_b]:font-bold"
                   dangerouslySetInnerHTML={{ __html: v.steinsaltz }}
                 />
               )}

@@ -7,11 +7,13 @@ const SEFARIA = "https://www.sefaria.org/api";
 function decodeEntities(s: string): string {
   return s
     .replace(/&nbsp;/g, " ")
+    .replace(/&thinsp;/g, "")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#\d+;/g, "")
+    .replace(/׀/g, "")  // Hebrew paseq cantillation mark ׀
     .replace(/\{[פסרנ]\}/g, "");
 }
 
