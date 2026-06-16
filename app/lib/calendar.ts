@@ -138,10 +138,33 @@ function dayIndexToReading(dayIndex: number): { book: BookDef; sederNum: number 
 
 // ── Fallback refs for sedarim missing from masdirim.org GitHub ───────────────
 // Sedarim 6 & 7 of תרי_עשר (Amos 2:10–7:14) are absent from the repo.
+// All 19 תהלים sedarim are absent — Psalms has no files in the bambiker/sdarim repo.
+// Chapter boundaries follow the traditional Masoretic sedarim divisions.
 const FALLBACK_REFS: Record<string, Record<number, string[]>> = {
   "תרי_עשר": {
     6: ["Amos 2:10-4:13"],
     7: ["Amos 5:1-7:14"],
+  },
+  "תהלים": {
+     1: ["Psalms 1-8"],
+     2: ["Psalms 9-17"],
+     3: ["Psalms 18-22"],
+     4: ["Psalms 23-31"],
+     5: ["Psalms 32-37"],
+     6: ["Psalms 38-45"],
+     7: ["Psalms 46-54"],
+     8: ["Psalms 55-62"],
+     9: ["Psalms 63-71"],
+    10: ["Psalms 72-77"],
+    11: ["Psalms 78-83"],
+    12: ["Psalms 84-92"],
+    13: ["Psalms 93-100"],
+    14: ["Psalms 101-107"],
+    15: ["Psalms 108-114"],
+    16: ["Psalms 115-118"],
+    17: ["Psalms 119"],
+    18: ["Psalms 120-135"],
+    19: ["Psalms 136-150"],
   },
 };
 
