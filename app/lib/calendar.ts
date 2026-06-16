@@ -138,10 +138,33 @@ function dayIndexToReading(dayIndex: number): { book: BookDef; sederNum: number 
 
 // ── Fallback refs for sedarim missing from masdirim.org GitHub ───────────────
 // Sedarim 6 & 7 of תרי_עשר (Amos 2:10–7:14) are absent from the repo.
+// All 19 תהלים sedarim are absent — Psalms has no files in the bambiker/sdarim repo.
+// Chapter boundaries follow the traditional Masoretic sedarim divisions.
 const FALLBACK_REFS: Record<string, Record<number, string[]>> = {
   "תרי_עשר": {
     6: ["Amos 2:10-4:13"],
     7: ["Amos 5:1-7:14"],
+  },
+  "תהלים": {
+     1: ["Psalms 1-8"],
+     2: ["Psalms 9-17"],
+     3: ["Psalms 18-22"],
+     4: ["Psalms 23-31"],
+     5: ["Psalms 32-37"],
+     6: ["Psalms 38-45"],
+     7: ["Psalms 46-54"],
+     8: ["Psalms 55-62"],
+     9: ["Psalms 63-71"],
+    10: ["Psalms 72-77"],
+    11: ["Psalms 78-83"],
+    12: ["Psalms 84-92"],
+    13: ["Psalms 93-100"],
+    14: ["Psalms 101-107"],
+    15: ["Psalms 108-114"],
+    16: ["Psalms 115-118"],
+    17: ["Psalms 119"],
+    18: ["Psalms 120-135"],
+    19: ["Psalms 136-150"],
   },
 };
 
@@ -165,6 +188,12 @@ const HEB_VAL: Record<string, number> = {
   "פ":80,"פא":81,"פב":82,"פג":83,"פד":84,"פה":85,"פו":86,
   "פז":87,"פח":88,"פט":89,"צ":90,"צא":91,"צב":92,"צג":93,
   "צד":94,"צה":95,"צו":96,"צז":97,"צח":98,"צט":99,"ק":100,
+  "קא":101,"קב":102,"קג":103,"קד":104,"קה":105,"קו":106,"קז":107,"קח":108,"קט":109,
+  "קי":110,"קיא":111,"קיב":112,"קיג":113,"קיד":114,"קטו":115,"קטז":116,"קיז":117,"קיח":118,"קיט":119,
+  "קכ":120,"קכא":121,"קכב":122,"קכג":123,"קכד":124,"קכה":125,"קכו":126,"קכז":127,"קכח":128,"קכט":129,
+  "קל":130,"קלא":131,"קלב":132,"קלג":133,"קלד":134,"קלה":135,"קלו":136,"קלז":137,"קלח":138,"קלט":139,
+  "קמ":140,"קמא":141,"קמב":142,"קמג":143,"קמד":144,"קמה":145,"קמו":146,"קמז":147,"קמח":148,"קמט":149,
+  "קנ":150,
 };
 const VAL_HEB = Object.fromEntries(Object.entries(HEB_VAL).map(([k, v]) => [v, k]));
 
