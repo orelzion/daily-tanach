@@ -8,10 +8,6 @@ function toIso(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-function isSaturday(iso: string): boolean {
-  return new Date(iso + "T12:00:00").getDay() === 6;
-}
-
 function addDays(iso: string, n: number): string {
   const d = new Date(iso + "T12:00:00");
   d.setDate(d.getDate() + n);
@@ -28,13 +24,14 @@ function formatDateHe(iso: string): string {
   });
 }
 
-type Status = "loading" | "ok" | "error" | "offline";
+type Status = "loading" | "ok" | "error" | "offline" | "skip";
 
 export default function ReadingView() {
   const [date, setDate] = useState(() => toIso(new Date()));
   const [reading, setReading] = useState<ReadingResponse | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [errorMsg, setErrorMsg] = useState("");
+  const [skipReason, setSkipReason] = useState("");
 
   const load = useCallback(async (iso: string) => {
     setStatus("loading");
@@ -64,8 +61,13 @@ export default function ReadingView() {
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         if (!background) {
-          setErrorMsg(body.error ?? `שגיאה ${res.status}`);
-          setStatus("error");
+          if (res.status === 404 && body.skipReason) {
+            setSkipReason(body.skipReason);
+            setStatus("skip");
+          } else {
+            setErrorMsg(body.error ?? `שגיאה ${res.status}`);
+            setStatus("error");
+          }
         }
         return;
       }
@@ -117,11 +119,17 @@ export default function ReadingView() {
       </header>
 
       <main className="flex-1 px-4 py-6 max-w-2xl mx-auto w-full">
-        {isSaturday(date) && <ShabbatState onPrev={() => setDate(addDays(date, -1))} onNext={() => setDate(addDays(date, 1))} />}
-        {!isSaturday(date) && status === "loading" && <LoadingState />}
-        {!isSaturday(date) && status === "offline" && <OfflineState onRetry={() => load(date)} />}
-        {!isSaturday(date) && status === "error" && <ErrorState msg={errorMsg} onRetry={() => load(date)} />}
-        {!isSaturday(date) && status === "ok" && reading && <Reading data={reading} />}
+        {status === "loading" && <LoadingState />}
+        {status === "skip" && (
+          <SkipState
+            reason={skipReason}
+            onPrev={() => setDate(addDays(date, -1))}
+            onNext={() => setDate(addDays(date, 1))}
+          />
+        )}
+        {status === "offline" && <OfflineState onRetry={() => load(date)} />}
+        {status === "error" && <ErrorState msg={errorMsg} onRetry={() => load(date)} />}
+        {status === "ok" && reading && <Reading data={reading} />}
       </main>
     </div>
   );
@@ -189,17 +197,18 @@ function hebrewNumeral(n: number): string {
   return s.slice(0, -1) + "״" + s.slice(-1);
 }
 
-function ShabbatState({ onPrev, onNext }: { onPrev: () => void; onNext: () => void }) {
+function SkipState({ reason, onPrev, onNext }: { reason: string; onPrev: () => void; onNext: () => void }) {
+  const isShabbat = reason === "שבת";
   return (
     <div className="flex flex-col items-center gap-6 py-16 text-center">
-      <p className="text-2xl font-semibold">שבת שלום</p>
-      <p className="text-gray-500 dark:text-gray-400">אין לימוד תנ״ך יומי בשבת</p>
+      <p className="text-2xl font-semibold">{isShabbat ? "שבת שלום" : reason}</p>
+      <p className="text-gray-500 dark:text-gray-400">אין לימוד תנ״ך יומי {isShabbat ? "בשבת" : "היום"}</p>
       <div className="flex gap-4 mt-2">
         <button onClick={onPrev} className="px-5 py-2 rounded-full border border-gray-200 dark:border-zinc-700 text-sm hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-          ← לימוד יום ו׳
+          ← יום קודם
         </button>
         <button onClick={onNext} className="px-5 py-2 rounded-full border border-gray-200 dark:border-zinc-700 text-sm hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-          לימוד יום א׳ →
+          יום הבא →
         </button>
       </div>
     </div>

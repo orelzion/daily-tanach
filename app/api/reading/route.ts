@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { ReadingResponse, Verse } from "@/app/lib/types";
-import { getReadingForDate } from "@/app/lib/calendar";
+import { getReadingForDate, getSkipReason } from "@/app/lib/calendar";
 
 const SEFARIA = "https://www.sefaria.org/api";
 
@@ -115,6 +115,10 @@ export async function GET(req: NextRequest) {
   try {
     const entry = await getReadingForDate(date);
     if (!entry) {
+      const skipReason = getSkipReason(date);
+      if (skipReason) {
+        return NextResponse.json({ error: "אין קריאה לתאריך זה", date, skipReason }, { status: 404 });
+      }
       return NextResponse.json({ error: "לא נמצאה קריאה לתאריך זה", date }, { status: 404 });
     }
 
