@@ -44,10 +44,10 @@ const TOTAL_SEDARIM = BOOKS.reduce((s, b) => s + b.count, 0); // 293
 //   - Purim, Tisha B'Av, Tzom Tammuz (17 Tammuz), Yom HaAtzma'ut
 //   Note: Tzom Tammuz is required so each annual cycle = 293 reading days (not 294).
 
-// Cache skipped dates per Hebrew year so we only compute once per year.
-const skipCache = new Map<number, Set<string>>();
+// Cache skipped dates → Hebrew label, per Hebrew year, so we only compute once per year.
+const skipCache = new Map<number, Map<string, string>>();
 
-function getSkipDatesForHebrewYear(year: number): Set<string> {
+function getSkipDatesForHebrewYear(year: number): Map<string, string> {
   if (skipCache.has(year)) return skipCache.get(year)!;
 
   // Cycle runs 23 Tishrei year → 22 Tishrei year+1
@@ -61,35 +61,33 @@ function getSkipDatesForHebrewYear(year: number): Set<string> {
     il:    true,
   });
 
-  const skipped = new Set<string>();
+  const skipped = new Map<string, string>();
 
   for (const ev of events) {
     const iso  = ev.date.greg().toISOString().slice(0, 10);
     const desc = ev.getDesc();
 
-    if (ev.mask & flags.CHAG) {
+    const isSkippable =
       // Major Yom Tov: RH×2, YK, Sukkot 1, Shemini Atzeret, Pesach 1 & 7, Shavuot
-      skipped.add(iso);
-    } else if (desc === "Purim") {
-      skipped.add(iso);
-    } else if (desc === "Tish'a B'Av" || desc === "Tish'a B'Av (observed)") {
-      skipped.add(iso);
-    } else if (desc === "Tzom Tammuz" || desc === "Tzom Tammuz (observed)") {
-      skipped.add(iso);
-    } else if (desc === "Yom HaAtzma'ut") {
-      skipped.add(iso);
-    } else if (desc.includes("Hoshana Raba")) {
-      skipped.add(iso);
-    }
+      !!(ev.mask & flags.CHAG) ||
+      desc === "Purim" ||
+      desc === "Tish'a B'Av" || desc === "Tish'a B'Av (observed)" ||
+      desc === "Tzom Tammuz" || desc === "Tzom Tammuz (observed)" ||
+      desc === "Yom HaAtzma'ut" ||
+      desc.includes("Hoshana Raba");
+
+    if (isSkippable) skipped.set(iso, ev.render("he-x-NoNikud"));
   }
 
   skipCache.set(year, skipped);
   return skipped;
 }
 
-function isSkipDay(iso: string): boolean {
+// Returns a Hebrew label for why a date has no reading ("שבת", a holiday/fast
+// name, etc.), or null if the date has a normal reading.
+export function getSkipReason(iso: string): string | null {
   const d = new Date(iso + "T12:00:00Z");
-  if (d.getUTCDay() === 6) return true; // Shabbat
+  if (d.getUTCDay() === 6) return "שבת";
 
   const hd = new HDate(d);
   // The cycle year is defined by 23 Tishrei of its starting year.
@@ -99,7 +97,11 @@ function isSkipDay(iso: string): boolean {
     ? hd.getFullYear()
     : hd.getFullYear() - 1;
 
-  return getSkipDatesForHebrewYear(cycleYear).has(iso);
+  return getSkipDatesForHebrewYear(cycleYear).get(iso) ?? null;
+}
+
+function isSkipDay(iso: string): boolean {
+  return getSkipReason(iso) !== null;
 }
 
 // ── Cycle date math ──────────────────────────────────────────────────────────
