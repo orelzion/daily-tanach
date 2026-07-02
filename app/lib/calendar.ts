@@ -41,8 +41,8 @@ const TOTAL_SEDARIM = BOOKS.reduce((s, b) => s + b.count, 0); // 293
 //   - Shabbat
 //   - CHAG (major Yom Tov): RH×2, YK, Sukkot 1, Shemini Atzeret, Pesach 1 & 7, Shavuot
 //   - Hoshana Raba (21 Tishrei) — confirmed from official PDF calendar
-//   - Purim, Tisha B'Av, Tzom Tammuz (17 Tammuz), Yom HaAtzma'ut
-//   Note: Tzom Tammuz is required so each annual cycle = 293 reading days (not 294).
+//   - Purim, Tisha B'Av, Yom HaAtzma'ut
+//   17 Tammuz (Tzom Tammuz) has a regular reading — it is NOT a skip day.
 
 // Cache skipped dates → Hebrew label, per Hebrew year, so we only compute once per year.
 const skipCache = new Map<number, Map<string, string>>();
@@ -72,7 +72,6 @@ function getSkipDatesForHebrewYear(year: number): Map<string, string> {
       !!(ev.mask & flags.CHAG) ||
       desc === "Purim" ||
       desc === "Tish'a B'Av" || desc === "Tish'a B'Av (observed)" ||
-      desc === "Tzom Tammuz" || desc === "Tzom Tammuz (observed)" ||
       desc === "Yom HaAtzma'ut" ||
       desc.includes("Hoshana Raba");
 
