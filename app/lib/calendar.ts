@@ -137,35 +137,102 @@ function dayIndexToReading(dayIndex: number): { book: BookDef; sederNum: number 
   return null;
 }
 
-// ── Fallback refs for sedarim missing from masdirim.org GitHub ───────────────
-// Sedarim 6 & 7 of תרי_עשר (Amos 2:10–7:14) are absent from the repo.
-// All 19 תהלים sedarim are absent — Psalms has no files in the bambiker/sdarim repo.
-// Chapter boundaries follow the traditional Masoretic sedarim divisions.
+// ── Fallback refs for sedarim missing/wrong in masdirim.org GitHub ───────────
+// Many books are missing their seder 6/7 (and a few beyond) JSON files from
+// the bambiker/sdarim repo's per-seder API. All ranges below were verified
+// against the repo's full sdarim.json manifest (which does tag these verses
+// with the right seder, even though no per-seder file was ever published)
+// and cross-checked against the surrounding sedarim's start/end boundaries.
+//
+// קהלת/איכה are a special case: the repo's per-seder files for these two
+// books have swapped content — "seder_X_קהלת.json" contains all of Eichah
+// (Lamentations), and "seder_X_איכה.json" contains Kohelet (Ecclesiastes)
+// split into 4 parts. We bypass those files entirely via fallback so the
+// correct book is always shown.
 const FALLBACK_REFS: Record<string, Record<number, string[]>> = {
+  "יהושע": {
+    6: ["Joshua 10:8-41"],
+    7: ["Joshua 10:42-12:24"],
+  },
+  "שופטים": {
+    6: ["Judges 8:3-9:6"],
+    7: ["Judges 9:7-57"],
+  },
+  "שמואל": {
+    6: ["I Samuel 10:24-12:21"],
+    7: ["I Samuel 12:22-14:22"],
+  },
+  "מלכים": {
+    6: ["I Kings 7:21-8:10"],
+    7: ["I Kings 8:11-57"],
+  },
+  "ישעיהו": {
+    6: ["Isaiah 14:2-16:4"],
+    7: ["Isaiah 16:5-19:24"],
+  },
+  "ירמיהו": {
+    6: ["Jeremiah 9:23-12:14"],
+    7: ["Jeremiah 12:15-14:21"],
+  },
+  "יחזקאל": {
+    6: ["Ezekiel 11:20-13:23"],
+    7: ["Ezekiel 14:1-16:13"],
+  },
   "תרי_עשר": {
-    6: ["Amos 2:10-4:13"],
-    7: ["Amos 5:1-7:14"],
+    6: ["Amos 2:10-5:13"],
+    7: ["Amos 5:14-7:14"],
   },
   "תהלים": {
-     1: ["Psalms 1-8"],
-     2: ["Psalms 9-17"],
-     3: ["Psalms 18-22"],
-     4: ["Psalms 23-31"],
-     5: ["Psalms 32-37"],
-     6: ["Psalms 38-45"],
-     7: ["Psalms 46-54"],
-     8: ["Psalms 55-62"],
-     9: ["Psalms 63-71"],
-    10: ["Psalms 72-77"],
-    11: ["Psalms 78-83"],
-    12: ["Psalms 84-92"],
-    13: ["Psalms 93-100"],
-    14: ["Psalms 101-107"],
-    15: ["Psalms 108-114"],
-    16: ["Psalms 115-118"],
-    17: ["Psalms 119"],
-    18: ["Psalms 120-135"],
-    19: ["Psalms 136-150"],
+     1: ["Psalms 1:1-11:6"],
+     2: ["Psalms 11:7-20:9"],
+     3: ["Psalms 20:10-29:10"],
+     4: ["Psalms 29:11-35:27"],
+     5: ["Psalms 35:28-41:13"],
+     6: ["Psalms 41:14-49:18"],
+     7: ["Psalms 49:19-57:11"],
+     8: ["Psalms 57:12-67:7"],
+     9: ["Psalms 67:8-72:19"],
+    10: ["Psalms 72:20-78:37"],
+    11: ["Psalms 78:38-84:12"],
+    12: ["Psalms 84:13-90:16"],
+    13: ["Psalms 90:17-100:5"],
+    14: ["Psalms 101:1-105:44"],
+    15: ["Psalms 105:45-111:9"],
+    16: ["Psalms 111:10-119:71"],
+    17: ["Psalms 119:72-128:5"],
+    18: ["Psalms 128:6-140:13"],
+    19: ["Psalms 140:14-150:6"],
+  },
+  "משלי": {
+    6: ["Proverbs 22:21-25:12"],
+    7: ["Proverbs 25:13-28:15"],
+  },
+  "איוב": {
+    6: ["Job 29:14-33:32"],
+    7: ["Job 33:33-38:34"],
+    8: ["Job 38:35-42:17"],
+  },
+  "קהלת": {
+    1: ["Ecclesiastes 1:1-3:12"],
+    2: ["Ecclesiastes 3:13-6:12"],
+    3: ["Ecclesiastes 7:1-9:6"],
+    4: ["Ecclesiastes 9:7-12:14"],
+  },
+  "איכה": {
+    1: ["Lamentations 1:1-5:22"],
+  },
+  "דניאל": {
+    6: ["Daniel 9:4-10:20"],
+    7: ["Daniel 10:21-12:13"],
+  },
+  "עזרא_ונחמיה": {
+    6: ["Nehemiah 3:38-6:14"],
+    7: ["Nehemiah 6:15-8:9"],
+  },
+  "דברי_הימים": {
+    6: ["I Chronicles 12:41-16:35"],
+    7: ["I Chronicles 16:36-19:12"],
+    8: ["I Chronicles 19:13-22:18"],
   },
 };
 
