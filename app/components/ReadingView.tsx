@@ -26,12 +26,37 @@ function formatDateHe(iso: string): string {
 
 type Status = "loading" | "ok" | "error" | "offline" | "skip";
 
+// Reading text size steps (relative to the default); remembered on this device.
+const FONT_SCALES = [0.85, 1, 1.15, 1.3, 1.5, 1.75];
+const DEFAULT_FONT_STEP = 1;
+const FONT_SCALE_KEY = "fontScale";
+
+function loadFontStep(): number {
+  try {
+    const step = FONT_SCALES.indexOf(Number(localStorage.getItem(FONT_SCALE_KEY)));
+    return step === -1 ? DEFAULT_FONT_STEP : step;
+  } catch {
+    return DEFAULT_FONT_STEP; // no localStorage on the server or when storage is blocked
+  }
+}
+
 export default function ReadingView() {
   const [date, setDate] = useState(() => toIso(new Date()));
   const [reading, setReading] = useState<ReadingResponse | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [errorMsg, setErrorMsg] = useState("");
   const [skipReason, setSkipReason] = useState("");
+  const [fontStep, setFontStep] = useState(loadFontStep);
+
+  const changeFontStep = (delta: number) => {
+    const step = Math.min(FONT_SCALES.length - 1, Math.max(0, fontStep + delta));
+    setFontStep(step);
+    try {
+      localStorage.setItem(FONT_SCALE_KEY, String(FONT_SCALES[step]));
+    } catch {
+      // Storage blocked: the size still applies until the page is closed.
+    }
+  };
 
   const load = useCallback(async (iso: string) => {
     setStatus("loading");
@@ -129,22 +154,53 @@ export default function ReadingView() {
         )}
         {status === "offline" && <OfflineState onRetry={() => load(date)} />}
         {status === "error" && <ErrorState msg={errorMsg} onRetry={() => load(date)} />}
-        {status === "ok" && reading && <Reading data={reading} />}
+        {status === "ok" && reading && (
+          <>
+            <FontSizeControl step={fontStep} onChange={changeFontStep} />
+            <Reading data={reading} scale={FONT_SCALES[fontStep]} />
+          </>
+        )}
       </main>
     </div>
   );
 }
 
-function Reading({ data }: { data: ReadingResponse }) {
+function FontSizeControl({ step, onChange }: { step: number; onChange: (delta: number) => void }) {
+  const button =
+    "w-9 h-9 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors";
+  return (
+    <div className="flex justify-end gap-1 -mt-3 mb-1">
+      <button
+        onClick={() => onChange(-1)}
+        disabled={step === 0}
+        aria-label="הקטנת גופן"
+        className={`${button} text-sm`}
+      >
+        א
+      </button>
+      <button
+        onClick={() => onChange(1)}
+        disabled={step === FONT_SCALES.length - 1}
+        aria-label="הגדלת גופן"
+        className={`${button} text-xl`}
+      >
+        א
+      </button>
+    </div>
+  );
+}
+
+function Reading({ data, scale }: { data: ReadingResponse; scale: number }) {
   const heading = data.multiBook
     ? data.bookHe
     : data.chapterEnd
       ? `${data.bookHe} פרקים ${data.chapter}–${data.chapterEnd}`
       : `${data.bookHe} פרק ${data.chapter}`;
 
+  // Text sizes below are in em, so they all follow the chosen scale.
   return (
-    <article>
-      <h1 className="text-2xl font-bold mb-6 text-center tracking-wide">{heading}</h1>
+    <article style={{ fontSize: `${scale}rem` }}>
+      <h1 className="text-[1.5em] leading-snug font-bold mb-6 text-center tracking-wide">{heading}</h1>
       <div className="space-y-5">
         {data.verses.map((v, i) => {
           const prev = i > 0 ? data.verses[i - 1] : null;
@@ -153,16 +209,16 @@ function Reading({ data }: { data: ReadingResponse }) {
           return (
             <div key={`${v.bookHe ?? ""}${v.chapter}:${v.num}`}>
               {showBookHeader && (
-                <h2 className="text-lg font-semibold text-amber-700 dark:text-amber-500 mt-8 mb-3 text-center">
+                <h2 className="text-[1.125em] font-semibold text-amber-700 dark:text-amber-500 mt-8 mb-3 text-center">
                   {v.bookHe}
                 </h2>
               )}
               {showChapterHeader && (
-                <h2 className="text-lg font-semibold text-amber-700 dark:text-amber-500 mt-8 mb-3 text-center">
+                <h2 className="text-[1.125em] font-semibold text-amber-700 dark:text-amber-500 mt-8 mb-3 text-center">
                   פרק {hebrewNumeral(v.chapter)}
                 </h2>
               )}
-              <p className="text-lg leading-8">
+              <p className="text-[1.125em] leading-[1.8]">
                 <span className="font-bold text-amber-700 dark:text-amber-500 ml-1">
                   {hebrewNumeral(v.num)}
                 </span>
@@ -170,7 +226,7 @@ function Reading({ data }: { data: ReadingResponse }) {
               </p>
               {v.steinsaltz && (
                 <p
-                  className="mt-1 pr-3 text-base leading-7 text-gray-600 dark:text-gray-400 border-r-2 border-amber-300 dark:border-amber-700 [&_b]:font-bold"
+                  className="mt-1 pr-3 text-[1em] leading-[1.75] text-gray-600 dark:text-gray-400 border-r-2 border-amber-300 dark:border-amber-700 [&_b]:font-bold"
                   dangerouslySetInnerHTML={{ __html: v.steinsaltz }}
                 />
               )}
