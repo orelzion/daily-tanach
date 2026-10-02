@@ -36,13 +36,30 @@ const BOOKS: BookDef[] = [
 // Total sedarim in one cycle
 const TOTAL_SEDARIM = BOOKS.reduce((s, b) => s + b.count, 0); // 293
 
+// ── Date helpers ─────────────────────────────────────────────────────────────
+
+// HDate.greg() returns local midnight, so read local fields (toISOString would
+// shift the date back a day in timezones east of UTC, e.g. Israel).
+function hdToIso(hd: HDate): string {
+  const d = hd.greg();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+// The cycle year is defined by 23 Tishrei of its starting year.
+// A date between 23 Tishrei Y and 22 Tishrei Y+1 belongs to cycle year Y.
+function cycleYearOf(hd: HDate): number {
+  const tishrei23 = new HDate(23, months.TISHREI, hd.getFullYear());
+  return hd.abs() >= tishrei23.abs() ? hd.getFullYear() : hd.getFullYear() - 1;
+}
+
 // ── Holiday skip logic ───────────────────────────────────────────────────────
-// Skip rules for tanachyomi.co.il:
+// Skip rules for tanachyomi.co.il (verified against the official 5787 calendar):
 //   - Shabbat
 //   - CHAG (major Yom Tov): RH×2, YK, Sukkot 1, Shemini Atzeret, Pesach 1 & 7, Shavuot
-//   - Hoshana Raba (21 Tishrei) — confirmed from official PDF calendar
 //   - Purim, Tisha B'Av, Yom HaAtzma'ut
-//   17 Tammuz (Tzom Tammuz) has a regular reading — it is NOT a skip day.
+//   Fast days, Chol HaMoed and Hoshana Raba have a regular reading.
 
 // Cache skipped dates → Hebrew label, per Hebrew year, so we only compute once per year.
 const skipCache = new Map<number, Map<string, string>>();
@@ -64,7 +81,7 @@ function getSkipDatesForHebrewYear(year: number): Map<string, string> {
   const skipped = new Map<string, string>();
 
   for (const ev of events) {
-    const iso  = ev.date.greg().toISOString().slice(0, 10);
+    const iso  = hdToIso(ev.date);
     const desc = ev.getDesc();
 
     const isSkippable =
@@ -72,8 +89,7 @@ function getSkipDatesForHebrewYear(year: number): Map<string, string> {
       !!(ev.mask & flags.CHAG) ||
       desc === "Purim" ||
       desc === "Tish'a B'Av" || desc === "Tish'a B'Av (observed)" ||
-      desc === "Yom HaAtzma'ut" ||
-      desc.includes("Hoshana Raba");
+      desc === "Yom HaAtzma'ut";
 
     if (isSkippable) skipped.set(iso, ev.render("he-x-NoNikud"));
   }
@@ -88,53 +104,98 @@ export function getSkipReason(iso: string): string | null {
   const d = new Date(iso + "T12:00:00Z");
   if (d.getUTCDay() === 6) return "שבת";
 
-  const hd = new HDate(d);
-  // The cycle year is defined by 23 Tishrei of its starting year.
-  // A date between 23 Tishrei Y and 22 Tishrei Y+1 belongs to cycle year Y.
-  const tishrei23 = new HDate(23, months.TISHREI, hd.getFullYear());
-  const cycleYear = hd.abs() >= tishrei23.abs()
-    ? hd.getFullYear()
-    : hd.getFullYear() - 1;
-
-  return getSkipDatesForHebrewYear(cycleYear).get(iso) ?? null;
+  return getSkipDatesForHebrewYear(cycleYearOf(new HDate(d))).get(iso) ?? null;
 }
 
 function isSkipDay(iso: string): boolean {
   return getSkipReason(iso) !== null;
 }
 
-// ── Cycle date math ──────────────────────────────────────────────────────────
+// ── Yearly cycle schedule ────────────────────────────────────────────────────
+// Every cycle restarts at Joshua 1 on 23 Tishrei and reads one unit per
+// reading day until Hoshana Raba. A regular year has about 293 reading days,
+// one per seder. In a leap year the extra days are filled like this:
+//   - Trei Asar is read a second time at the end of the cycle, as 25 units
+//     (21 sedarim, the 4 longest read over two days). The official calendar
+//     repeats Divrei HaYamim (exactly 25 sedarim) here instead; Trei Asar is
+//     our own choice, since these days run from late Elul to Hoshana Raba and
+//     it holds the Tishrei haftarot (Hosea 14, Joel 2, Jonah, Micah 7,
+//     Zechariah 14). Everywhere else we follow the official 5787 calendar.
+//   - Any days still left over are filled by reading a seder over two days.
+//     5787 needs four such splits, listed below in book order.
+// Only the 5787 calendar has been checked. For other years the same rule
+// applies, using the first N splits for the N left-over days. That choice is
+// an assumption — re-check it when the official calendar for a year comes out.
 
-// Anchor: 23 Tishrei 5787 = 2026-10-04 = Joshua seder 1 (day 0 of cycle)
-const ANCHOR_ISO = "2026-10-04";
+type Reading = {
+  book: BookDef;
+  sederNum: number;
+  refs?: string[];  // set for half of a split seder
+};
 
-// Signed count of reading days between anchor and date (negative = before anchor).
-function readingDaysSinceAnchor(date: string): number {
-  if (date >= ANCHOR_ISO) {
-    return countReadingDays(ANCHOR_ISO, date);
-  } else {
-    return -countReadingDays(date, ANCHOR_ISO);
+type SplitSeder = { masdirim: string; sederNum: number; halves: [string[], string[]] };
+
+const SPLIT_SEDARIM: SplitSeder[] = [
+  { masdirim: "יהושע",      sederNum: 4, halves: [["Joshua 6:27-7:26"],       ["Joshua 8:1-32"]]          },
+  { masdirim: "ירמיהו",     sederNum: 9, halves: [["Jeremiah 17:7-25"],       ["Jeremiah 17:26-18:18"]]   },
+  { masdirim: "שיר_השירים", sederNum: 1, halves: [["Song of Songs 1:1-5:1"],  ["Song of Songs 5:2-8:14"]] },
+  { masdirim: "רות",        sederNum: 1, halves: [["Ruth 1:1-2:11"],          ["Ruth 2:12-4:22"]]         },
+];
+
+const REPEATED_IN_LEAP_YEAR = BOOKS.find((b) => b.masdirim === "תרי_עשר")!;
+
+// The 4 longest Trei Asar sedarim, split at the chapter or book boundary
+// closest to their middle.
+const REPEAT_SPLITS: SplitSeder[] = [
+  { masdirim: "תרי_עשר", sederNum:  1, halves: [["Hosea 1:1-2:25"], ["Hosea 3:1-5:1"]] },
+  { masdirim: "תרי_עשר", sederNum:  2, halves: [["Hosea 5:2-7:16"], ["Hosea 8:1-10:11"]] },
+  { masdirim: "תרי_עשר", sederNum:  8, halves: [["Amos 7:15-9:15"], ["Obadiah 1:1-20"]] },
+  { masdirim: "תרי_עשר", sederNum: 21, halves: [["Zechariah 14:21", "Malachi 1:1-2:17"], ["Malachi 3:1-24"]] },
+];
+
+// One reading unit per seder of `book`, or two for each seder in `splits`.
+function bookUnits(book: BookDef, splits: SplitSeder[]): Reading[] {
+  const units: Reading[] = [];
+  for (let sederNum = 1; sederNum <= book.count; sederNum++) {
+    const split = splits.find((s) => s.masdirim === book.masdirim && s.sederNum === sederNum);
+    if (split) {
+      units.push({ book, sederNum, refs: split.halves[0] });
+      units.push({ book, sederNum, refs: split.halves[1] });
+    } else {
+      units.push({ book, sederNum });
+    }
   }
+  return units;
 }
 
-function countReadingDays(fromIso: string, toIso: string): number {
-  const d   = new Date(fromIso + "T12:00:00Z");
-  const end = new Date(toIso   + "T12:00:00Z");
-  let count = 0;
-  while (d < end) {
-    if (!isSkipDay(d.toISOString().slice(0, 10))) count++;
-    d.setUTCDate(d.getUTCDate() + 1);
-  }
-  return count;
-}
+const LEAP_YEAR_REPEAT = bookUnits(REPEATED_IN_LEAP_YEAR, REPEAT_SPLITS); // 25 units
 
-function dayIndexToReading(dayIndex: number): { book: BookDef; sederNum: number } | null {
-  let remaining = dayIndex;
-  for (const book of BOOKS) {
-    if (remaining < book.count) return { book, sederNum: remaining + 1 };
-    remaining -= book.count;
+type Cycle = {
+  dayIndex: Map<string, number>;  // reading-day ISO date → 0-based index
+  schedule: Reading[];
+};
+
+const cycleCache = new Map<number, Cycle>();
+
+function getCycle(year: number): Cycle {
+  if (cycleCache.has(year)) return cycleCache.get(year)!;
+
+  const dayIndex = new Map<string, number>();
+  const end = new HDate(23, months.TISHREI, year + 1).abs();
+  for (let abs = new HDate(23, months.TISHREI, year).abs(); abs < end; abs++) {
+    const iso = hdToIso(new HDate(abs));
+    if (!isSkipDay(iso)) dayIndex.set(iso, dayIndex.size);
   }
-  return null;
+
+  const repeat = HDate.isLeapYear(year) ? LEAP_YEAR_REPEAT : [];
+  const extraDays = dayIndex.size - TOTAL_SEDARIM - repeat.length;
+  const splits = SPLIT_SEDARIM.slice(0, Math.max(0, extraDays));
+
+  const schedule = [...BOOKS.flatMap((book) => bookUnits(book, splits)), ...repeat];
+
+  const cycle = { dayIndex, schedule };
+  cycleCache.set(year, cycle);
+  return cycle;
 }
 
 // ── Fallback refs for sedarim missing/wrong in masdirim.org GitHub ───────────
@@ -268,6 +329,9 @@ const VAL_HEB = Object.fromEntries(Object.entries(HEB_VAL).map(([k, v]) => [v, k
 function numToHeb(n: number): string { return VAL_HEB[n] ?? String(n); }
 function hebToNum(s: string): number | null { return HEB_VAL[s.trim()] ?? null; }
 
+// "Song of Songs 1:1-5:1" → "Song of Songs"
+function refBook(ref: string): string { return ref.replace(/\s+[\d:-]+$/, ""); }
+
 const BOOKCHAPTER_TO_SEFARIA: Record<string, string> = {
   "שמואל א": "I Samuel",      "שמואל ב": "II Samuel",
   "מלכים א": "I Kings",       "מלכים ב": "II Kings",
@@ -301,8 +365,7 @@ async function fetchSederVerseRange(
   // Use hardcoded fallback when masdirim file is known to be missing.
   const fallback = FALLBACK_REFS[masdirimBook]?.[sederNum];
   if (fallback) {
-    const firstSefariaBook = fallback[0].split(" ")[0];
-    return { bookHe: masdirimBook.replace("_", " "), book: firstSefariaBook, refs: fallback };
+    return { bookHe: masdirimBook.replace("_", " "), book: refBook(fallback[0]), refs: fallback };
   }
 
   const sederHeb = numToHeb(sederNum);
@@ -356,12 +419,14 @@ async function fetchSederVerseRange(
 export async function getReadingForDate(date: string): Promise<CalendarEntry | null> {
   if (isSkipDay(date)) return null;
 
-  // Signed reading days from anchor → wrap with JS-safe modulo → 0-based seder index.
-  const signed     = readingDaysSinceAnchor(date);
-  const sederIndex = ((signed % TOTAL_SEDARIM) + TOTAL_SEDARIM) % TOTAL_SEDARIM;
-
-  const reading = dayIndexToReading(sederIndex);
+  const cycle = getCycle(cycleYearOf(new HDate(new Date(date + "T12:00:00Z"))));
+  const index = cycle.dayIndex.get(date);
+  const reading = index === undefined ? undefined : cycle.schedule[index];
   if (!reading) return null;
+
+  if (reading.refs) {
+    return { bookHe: reading.book.bookHe, book: refBook(reading.refs[0]), refs: reading.refs };
+  }
 
   const entry = await fetchSederVerseRange(reading.book.masdirim, reading.sederNum);
   if (!entry) return null;
