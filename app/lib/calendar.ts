@@ -114,9 +114,13 @@ function isSkipDay(iso: string): boolean {
 // ── Yearly cycle schedule ────────────────────────────────────────────────────
 // Every cycle restarts at Joshua 1 on 23 Tishrei and reads one unit per
 // reading day until Hoshana Raba. A regular year has about 293 reading days,
-// one per seder. The official 5787 (leap year) calendar fills the extra days
-// like this:
-//   - Divrei HaYamim (exactly 25 sedarim) is read a second time at the end.
+// one per seder. In a leap year the extra days are filled like this:
+//   - Trei Asar is read a second time at the end of the cycle, as 25 units
+//     (21 sedarim, the 4 longest read over two days). The official calendar
+//     repeats Divrei HaYamim (exactly 25 sedarim) here instead; Trei Asar is
+//     our own choice, since these days run from late Elul to Hoshana Raba and
+//     it holds the Tishrei haftarot (Hosea 14, Joel 2, Jonah, Micah 7,
+//     Zechariah 14). Everywhere else we follow the official 5787 calendar.
 //   - Any days still left over are filled by reading a seder over two days.
 //     5787 needs four such splits, listed below in book order.
 // Only the 5787 calendar has been checked. For other years the same rule
@@ -129,14 +133,42 @@ type Reading = {
   refs?: string[];  // set for half of a split seder
 };
 
-const SPLIT_SEDARIM: { masdirim: string; sederNum: number; halves: [string[], string[]] }[] = [
+type SplitSeder = { masdirim: string; sederNum: number; halves: [string[], string[]] };
+
+const SPLIT_SEDARIM: SplitSeder[] = [
   { masdirim: "יהושע",      sederNum: 4, halves: [["Joshua 6:27-7:26"],       ["Joshua 8:1-32"]]          },
   { masdirim: "ירמיהו",     sederNum: 9, halves: [["Jeremiah 17:7-25"],       ["Jeremiah 17:26-18:18"]]   },
   { masdirim: "שיר_השירים", sederNum: 1, halves: [["Song of Songs 1:1-5:1"],  ["Song of Songs 5:2-8:14"]] },
   { masdirim: "רות",        sederNum: 1, halves: [["Ruth 1:1-2:11"],          ["Ruth 2:12-4:22"]]         },
 ];
 
-const REPEATED_IN_LEAP_YEAR = BOOKS.find((b) => b.masdirim === "דברי_הימים")!;
+const REPEATED_IN_LEAP_YEAR = BOOKS.find((b) => b.masdirim === "תרי_עשר")!;
+
+// The 4 longest Trei Asar sedarim, split at the chapter or book boundary
+// closest to their middle.
+const REPEAT_SPLITS: SplitSeder[] = [
+  { masdirim: "תרי_עשר", sederNum:  1, halves: [["Hosea 1:1-2:25"], ["Hosea 3:1-5:1"]] },
+  { masdirim: "תרי_עשר", sederNum:  2, halves: [["Hosea 5:2-7:16"], ["Hosea 8:1-10:11"]] },
+  { masdirim: "תרי_עשר", sederNum:  8, halves: [["Amos 7:15-9:15"], ["Obadiah 1:1-20"]] },
+  { masdirim: "תרי_עשר", sederNum: 21, halves: [["Zechariah 14:21", "Malachi 1:1-2:17"], ["Malachi 3:1-24"]] },
+];
+
+// One reading unit per seder of `book`, or two for each seder in `splits`.
+function bookUnits(book: BookDef, splits: SplitSeder[]): Reading[] {
+  const units: Reading[] = [];
+  for (let sederNum = 1; sederNum <= book.count; sederNum++) {
+    const split = splits.find((s) => s.masdirim === book.masdirim && s.sederNum === sederNum);
+    if (split) {
+      units.push({ book, sederNum, refs: split.halves[0] });
+      units.push({ book, sederNum, refs: split.halves[1] });
+    } else {
+      units.push({ book, sederNum });
+    }
+  }
+  return units;
+}
+
+const LEAP_YEAR_REPEAT = bookUnits(REPEATED_IN_LEAP_YEAR, REPEAT_SPLITS); // 25 units
 
 type Cycle = {
   dayIndex: Map<string, number>;  // reading-day ISO date → 0-based index
@@ -155,25 +187,11 @@ function getCycle(year: number): Cycle {
     if (!isSkipDay(iso)) dayIndex.set(iso, dayIndex.size);
   }
 
-  const repeated = HDate.isLeapYear(year) ? REPEATED_IN_LEAP_YEAR.count : 0;
-  const extraDays = dayIndex.size - TOTAL_SEDARIM - repeated;
+  const repeat = HDate.isLeapYear(year) ? LEAP_YEAR_REPEAT : [];
+  const extraDays = dayIndex.size - TOTAL_SEDARIM - repeat.length;
   const splits = SPLIT_SEDARIM.slice(0, Math.max(0, extraDays));
 
-  const schedule: Reading[] = [];
-  for (const book of BOOKS) {
-    for (let sederNum = 1; sederNum <= book.count; sederNum++) {
-      const split = splits.find((s) => s.masdirim === book.masdirim && s.sederNum === sederNum);
-      if (split) {
-        schedule.push({ book, sederNum, refs: split.halves[0] });
-        schedule.push({ book, sederNum, refs: split.halves[1] });
-      } else {
-        schedule.push({ book, sederNum });
-      }
-    }
-  }
-  for (let sederNum = 1; sederNum <= repeated; sederNum++) {
-    schedule.push({ book: REPEATED_IN_LEAP_YEAR, sederNum });
-  }
+  const schedule = [...BOOKS.flatMap((book) => bookUnits(book, splits)), ...repeat];
 
   const cycle = { dayIndex, schedule };
   cycleCache.set(year, cycle);
